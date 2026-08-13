@@ -1,0 +1,21 @@
+# Ignorar apenas arquivos PDFs pesados
+backend/data/pdfs/
+
+# Configurações locais e chaves
+.env
+backend/.env
+
+# Python (Cache e compilados)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+venv/
+.venv/
+
+# Editores de código e SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

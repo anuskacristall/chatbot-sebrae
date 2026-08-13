@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  chatbot-sebrae:
+    build: .
+    container_name: chatbot_sebrae_app
+    ports:
+      - "8001:8001"
+    env_file:
+      - backend/.env
+    volumes:
+      - ./backend/data:/app/backend/data
+      - ./backend/backend/db:/app/backend/backend/db
+      - ./backend/database.db:/app/backend/database.db
+    restart: always

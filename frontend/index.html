@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente Virtual Sebrae - Educação Empreendedora</title>
+    <link rel="stylesheet" href="style.css?v=2.2">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div class="chat-wrapper">
+    <header class="chat-header">
+    <div class="header-info" style="display: flex; align-items: center; gap: 15px;">
+        <img src="robo-sebrae.png" alt="Robô Sebrae" class="robot-icon">
+        <div class="title-container">
+            <span class="subtitle">Assistente Virtual Sebrae</span>
+            <h1 class="main-title">Educação Empreendedora</h1>
+        </div>
+    </div>
+
+    <div class="header-actions" style="display: flex; align-items: center; gap: 15px;">
+        <div id="feedback-header-btn" onclick="toggleFeedback()">
+             <span>📢 Não encontrou o que precisava?</span>
+        </div>
+        <button id="btn-logout-chat" onclick="realizarLogoutChat()" class="btn-logout-chat hidden">
+            Sair
+        </button>
+    </div> 
+</header>
+
+<div id="feedback-modal" class="modal-overlay hidden">
+   <div class="modal-content">
+        <div id="feedback-form-container">
+            <h3>Ajude-nos a melhorar! 🚀</h3>
+            <p>O que você perguntou e eu não soube responder?</p>
+            <textarea id="feedback-text" placeholder="Digite sua dúvida aqui..."></textarea>
+            <input type="email" id="feedback-email" placeholder="Seu e-mail (opcional)">
+            <div class="modal-buttons">
+                <button onclick="enviarFeedback()" class="btn-send">Enviar</button>
+                <button onclick="toggleFeedback()" class="btn-cancel">Cancelar</button>
+            </div>
+        </div>
+
+        <div id="feedback-success-container" class="hidden">
+            <div style="padding: 20px;">
+                <h2 style="color: #28a745;">✓ Enviado!</h2>
+                <p style="margin-top: 15px;">Obrigado por ajudar o Sebrae a melhorar.</p>
+                <button onclick="toggleFeedback()" style="margin-top: 20px; padding: 10px 20px; cursor: pointer; background: #005696; color: white; border: none; border-radius: 5px;">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <main class="chat-window" id="chat-window">
+        <div class="bot-msg-container">
+            <div class="bot-msg">
+                Olá! Como posso te ajudar hoje?
+            </div>
+        </div>
+    </main>
+
+    <footer class="chat-input-area">
+        <div class="input-container">
+            <input type="search" id="user-input" placeholder="Digite sua dúvida aqui..." autocomplete="off">
+            <button id="send-btn" onclick="enviarPergunta()">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22 2L11 13" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+    </footer>
+</div>
+
+<!-- Overlay de Autenticação do Usuário -->
+<div id="login-overlay" class="login-modal-overlay">
+    <div class="login-modal-content">
+        <!-- Cabeçalho do Login -->
+        <div class="login-header">
+            <img src="robo-sebrae.png" alt="Robô Sebrae" class="login-robot-icon">
+            <h2>Acesso ao Assistente</h2>
+            <p>Faça login ou crie uma conta para usar o chatbot.</p>
+        </div>
+        
+        <!-- Abas do Modal -->
+        <div class="login-tabs">
+            <button class="login-tab-btn active" id="tab-entrar" onclick="alternarLoginTab('entrar')">Entrar</button>
+            <button class="login-tab-btn" id="tab-cadastrar" onclick="alternarLoginTab('cadastrar')">Cadastrar</button>
+        </div>
+        
+        <!-- Formulário de Login -->
+        <form id="form-entrar" class="login-form-section" onsubmit="event.preventDefault(); logarUsuario();">
+            <div class="form-group">
+                <label for="login-email">E-mail</label>
+                <input type="email" id="login-email" placeholder="Ex: nome@sebrae.com.br" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="login-senha">Senha</label>
+                <input type="password" id="login-senha" placeholder="Sua senha" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-primary-login" id="btn-submit-login">Entrar</button>
+        </form>
+        
+        <!-- Formulário de Cadastro -->
+        <form id="form-cadastrar" class="login-form-section hidden" onsubmit="event.preventDefault(); cadastrarUsuario();">
+            <div class="form-group">
+                <label for="cadastro-email">E-mail</label>
+                <input type="email" id="cadastro-email" placeholder="Ex: nome@sebrae.com.br" autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="cadastro-senha">Senha</label>
+                <input type="password" id="cadastro-senha" placeholder="Crie uma senha de acesso" autocomplete="new-password">
+            </div>
+            <button type="submit" class="btn-primary-login" id="btn-submit-cadastro">Cadastrar</button>
+        </form>
+
+        <!-- Formulário de Verificação de Código -->
+        <form id="form-verificar" class="login-form-section hidden" onsubmit="event.preventDefault(); verificarCodigo();">
+            <div class="verify-instructions">
+                <p>Enviamos um código de confirmação de 6 dígitos para o seu e-mail.</p>
+                <p class="demo-notice"><strong>Nota de Teste Local:</strong> Use o código <strong>123456</strong>.</p>
+            </div>
+            <div class="form-group">
+                <label for="verificar-codigo">Código de Verificação</label>
+                <input type="text" id="verificar-codigo" placeholder="Digite os 6 dígitos" maxlength="6" style="text-align: center; font-size: 20px; letter-spacing: 5px; font-weight: bold;" autocomplete="off">
+            </div>
+            <button type="submit" class="btn-primary-login" id="btn-submit-verificar">Confirmar Código</button>
+            <button type="button" onclick="voltarParaCadastro()" class="btn-link-login">Voltar ao cadastro</button>
+        </form>
+        
+        <!-- Mensagem de Status -->
+        <div id="login-status-msg" class="login-status-msg hidden"></div>
+    </div>
+</div>
+
+<script src="script.js?v=2.2"></script>
+
+</body>
+</html>
