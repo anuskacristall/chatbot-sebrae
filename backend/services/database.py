@@ -168,15 +168,19 @@ def inicializar_banco():
 # --- FUNÇÕES DE INTEGRAÇÃO COM SUPABASE STORAGE ---
 
 def inicializar_bucket():
-    """Garante que o bucket 'documentos' existe no Supabase."""
+    """Garante que o bucket 'documentos' existe no Supabase com limite de 50MB."""
     if not supabase:
         return
     try:
-        supabase.storage.create_bucket("documentos", options={"public": False})
-        print("[STORAGE] Bucket 'documentos' verificado/criado com sucesso.")
+        supabase.storage.create_bucket("documentos", options={"public": False, "file_size_limit": 52428800})
+        print("[STORAGE] Bucket 'documentos' verificado/criado com limite de 50MB.")
     except Exception as e:
-        # Se já existir, ele retorna erro de duplicidade que podemos ignorar
-        pass
+        # Se já existir, tenta atualizar as opções para garantir o limite de 50MB
+        try:
+            supabase.storage.update_bucket("documentos", options={"public": False, "file_size_limit": 52428800})
+            print("[STORAGE] Bucket 'documentos' atualizado com limite de 50MB.")
+        except Exception as err:
+            print("[STORAGE] Erro ao atualizar configurações do bucket:", str(err))
 
 def db_upload_pdf_to_storage(nome_arquivo: str, bytes_arquivo: bytes):
     """Envia um arquivo PDF para a nuvem no bucket 'documentos'."""
