@@ -12,14 +12,15 @@ from services.vector_store import salvar_no_banco
 # Resolve o problema de conexão SSL no ambiente corporativo
 ssl._create_default_https_context = ssl._create_unverified_context
 
-def processar_base_conhecimento():
+def processar_base_conhecimento(pasta_pdfs=None):
     """
     Realiza o fluxo completo: PDF -> Texto -> Chunks -> Vetores -> FAISS
     """
-    raiz_projeto = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    pasta_pdfs = os.path.join(raiz_projeto, "data", "pdfs")
-    if not os.path.exists(pasta_pdfs):
-        os.makedirs(pasta_pdfs, exist_ok=True)
+    if not pasta_pdfs:
+        raiz_projeto = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        pasta_pdfs = os.path.join(raiz_projeto, "data", "pdfs")
+        if not os.path.exists(pasta_pdfs):
+            os.makedirs(pasta_pdfs, exist_ok=True)
         
     todos_os_textos = []
     fontes_por_texto = []

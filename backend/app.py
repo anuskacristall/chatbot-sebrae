@@ -22,7 +22,12 @@ from services.database import (
     db_obter_admin,
     db_listar_documentos,
     db_registrar_documento,
-    db_deletar_documento
+    db_deletar_documento,
+    db_upload_pdf_to_storage,
+    db_delete_pdf_from_storage,
+    db_download_all_pdfs_from_storage,
+    db_upload_faiss_index,
+    db_download_faiss_index
 )
 from services.auth import verificar_senha, gerar_hash_senha, criar_sessao, verificar_sessao, encerrar_sessao, obter_username_sessao
 from services.data_loader import processar_base_conhecimento
@@ -280,38 +285,34 @@ async def admin_upload_pdf(file: UploadFile = File(...), token: str = Depends(ob
     if not file.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Apenas arquivos PDF sao permitidos.")
         
-    caminho_destino = os.path.join(caminho_pdfs, file.filename)
-    
     try:
-        with open(caminho_destino, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
-        tamanho = os.path.getsize(caminho_destino)
+        conteudo = await file.read()
+        tamanho = len(conteudo)
         tamanho_fmt = f"{tamanho / (1024*1024):.2f} MB" if tamanho > 1024*1024 else f"{tamanho / 1024:.2f} KB"
+        
+        # Envia direto ao Supabase Storage
+        db_upload_pdf_to_storage(file.filename, conteudo)
         
         import datetime
         data_hoje = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         
-        # Registra no Supabase
+        # Registra no Supabase DB
         db_registrar_documento(file.filename, data_hoje, tamanho_fmt)
         
         return {"status": "sucesso", "arquivo": file.filename}
     except Exception as e:
         print("[UPLOAD ERROR]", str(e))
-        raise HTTPException(status_code=500, detail="Erro ao salvar arquivo PDF")
+        raise HTTPException(status_code=500, detail="Erro ao salvar arquivo PDF no Supabase Storage")
 
 @app.delete("/api/admin/pdfs/{filename}")
 def admin_deletar_pdf(filename: str, token: str = Depends(obter_usuario_logado)):
     filename_limpo = os.path.basename(filename)
-    caminho_arq = os.path.join(caminho_pdfs, filename_limpo)
     
-    if os.path.exists(caminho_arq):
-        try:
-            os.remove(caminho_arq)
-        except Exception as e:
-            print("[DELETE FILE ERROR]", str(e))
-            
     try:
+        # Exclui do Supabase Storage
+        db_delete_pdf_from_storage(filename_limpo)
+        
+        # Exclui do banco
         db_deletar_documento(filename_limpo)
         return {"status": "sucesso"}
     except Exception as e:
@@ -320,17 +321,35 @@ def admin_deletar_pdf(filename: str, token: str = Depends(obter_usuario_logado))
 
 # --- SINCRONIZAÇÃO DE BASE VETORIAL ---
 
-# Dicionário em memória simples para rastrear status de sincronização
 sync_status = {"status": "idle", "mensagem": "Nenhuma sincronizacao ativa."}
 
 def tarefa_sincronizacao():
     global sync_status
+    import tempfile
     try:
         sync_status["status"] = "running"
-        sync_status["mensagem"] = "Processando PDFs e gerando vetores na OpenAI..."
-        processar_base_conhecimento()
-        sync_status["status"] = "success"
-        sync_status["mensagem"] = "Sincronizacao concluida com sucesso!"
+        sync_status["mensagem"] = "Conectando ao Supabase Storage e baixando PDFs..."
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdfs_baixados = db_download_all_pdfs_from_storage(temp_dir)
+            
+            if not pdfs_baixados:
+                sync_status["status"] = "success"
+                sync_status["mensagem"] = "Nenhum PDF encontrado na nuvem para sincronizar."
+                return
+                
+            sync_status["mensagem"] = f"Lendo {len(pdfs_baixados)} PDFs e gerando vetores na OpenAI..."
+            processar_base_conhecimento(temp_dir)
+            
+            sync_status["mensagem"] = "Enviando indices de IA gerados para a nuvem..."
+            from services.vector_store import PASTA_DB
+            sucesso_envio = db_upload_faiss_index(PASTA_DB)
+            
+            if sucesso_envio:
+                sync_status["status"] = "success"
+                sync_status["mensagem"] = "Sincronizacao concluida com sucesso na nuvem!"
+            else:
+                raise Exception("Erro ao salvar indices do FAISS no Supabase Storage.")
     except Exception as e:
         sync_status["status"] = "error"
         sync_status["mensagem"] = f"Erro na sincronizacao: {str(e)}"

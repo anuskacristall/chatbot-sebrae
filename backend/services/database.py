@@ -161,6 +161,131 @@ def inicializar_banco():
                 print(f"[DB] Usuário de teste criado no Supabase ({email_teste} / 'sebrae123')")
         except Exception as e:
             print(f"[DB] [ALERT] Erro ao verificar/criar usuário {email_teste} no Supabase.", str(e))
+            
+    # 3. Garante que o bucket de armazenamento exista no Supabase Storage
+    inicializar_bucket()
+
+# --- FUNÇÕES DE INTEGRAÇÃO COM SUPABASE STORAGE ---
+
+def inicializar_bucket():
+    """Garante que o bucket 'documentos' existe no Supabase."""
+    if not supabase:
+        return
+    try:
+        supabase.storage.create_bucket("documentos", options={"public": False})
+        print("[STORAGE] Bucket 'documentos' verificado/criado com sucesso.")
+    except Exception as e:
+        # Se já existir, ele retorna erro de duplicidade que podemos ignorar
+        pass
+
+def db_upload_pdf_to_storage(nome_arquivo: str, bytes_arquivo: bytes):
+    """Envia um arquivo PDF para a nuvem no bucket 'documentos'."""
+    if not supabase:
+        return None
+    res = supabase.storage.from_("documentos").upload(
+        path=nome_arquivo,
+        file=bytes_arquivo,
+        file_options={"upsert": "true", "content-type": "application/pdf"}
+    )
+    return res
+
+def db_delete_pdf_from_storage(nome_arquivo: str):
+    """Remove um PDF do bucket 'documentos'."""
+    if not supabase:
+        return None
+    try:
+        res = supabase.storage.from_("documentos").remove([nome_arquivo])
+        return res
+    except Exception as e:
+        print(f"[STORAGE] Erro ao deletar o PDF {nome_arquivo} da nuvem: {e}")
+        return None
+
+def db_download_all_pdfs_from_storage(destino_dir: str):
+    """Baixa todos os PDFs do bucket 'documentos' para uma pasta local temporária."""
+    if not supabase:
+        return []
+    os.makedirs(destino_dir, exist_ok=True)
+    
+    # Lista arquivos no bucket documentos
+    arquivos = supabase.storage.from_("documentos").list()
+    arquivos_baixados = []
+    
+    for arq in arquivos:
+        nome = arq["name"]
+        # Ignora pastas ou o próprio índice FAISS se estiver no mesmo bucket
+        if nome.endswith(".pdf"):
+            try:
+                caminho_local = os.path.join(destino_dir, nome)
+                bytes_arq = supabase.storage.from_("documentos").download(nome)
+                with open(caminho_local, "wb") as f:
+                    f.write(bytes_arq)
+                arquivos_baixados.append(nome)
+                print(f"[STORAGE] PDF {nome} baixado da nuvem com sucesso.")
+            except Exception as e:
+                print(f"[STORAGE] Erro ao baixar o PDF {nome} da nuvem: {e}")
+                
+    return arquivos_baixados
+
+def db_upload_faiss_index(pasta_origem: str):
+    """Faz o upload dos arquivos index.faiss e index.pkl para o Supabase Storage."""
+    if not supabase:
+        return False
+    
+    arquivos = ["index.faiss", "index.pkl"]
+    for nome in arquivos:
+        caminho_local = os.path.join(pasta_origem, nome)
+        if os.path.exists(caminho_local):
+            try:
+                with open(caminho_local, "rb") as f:
+                    conteudo = f.read()
+                
+                caminho_remoto = f"faiss_index/{nome}"
+                supabase.storage.from_("documentos").upload(
+                    path=caminho_remoto,
+                    file=conteudo,
+                    file_options={"upsert": "true", "content-type": "application/octet-stream"}
+                )
+                print(f"[STORAGE] Índice {nome} enviado para a nuvem.")
+            except Exception as e:
+                print(f"[STORAGE] Erro ao enviar o índice {nome}: {e}")
+                return False
+    return True
+
+def db_download_faiss_index(pasta_destino: str):
+    """Baixa os arquivos index.faiss e index.pkl do Supabase Storage para uso local."""
+    if not supabase:
+        return False
+    
+    os.makedirs(pasta_destino, exist_ok=True)
+    arquivos = ["index.faiss", "index.pkl"]
+    
+    # Verifica se os arquivos de índice existem na nuvem
+    try:
+        lista = supabase.storage.from_("documentos").list("faiss_index")
+        arquivos_remotos = [item["name"] for item in lista]
+    except Exception as e:
+        print("[STORAGE] Erro ao listar arquivos do índice:", str(e))
+        return False
+    
+    # Se algum arquivo estiver faltando, não prossegue
+    for nome in arquivos:
+        if nome not in arquivos_remotos:
+            print(f"[STORAGE] Arquivo de índice {nome} não encontrado na nuvem.")
+            return False
+            
+    for nome in arquivos:
+        caminho_local = os.path.join(pasta_destino, nome)
+        caminho_remoto = f"faiss_index/{nome}"
+        try:
+            bytes_arq = supabase.storage.from_("documentos").download(caminho_remoto)
+            with open(caminho_local, "wb") as f:
+                f.write(bytes_arq)
+            print(f"[STORAGE] Índice {nome} baixado da nuvem com sucesso.")
+        except Exception as e:
+            print(f"[STORAGE] Erro ao baixar o índice {nome}: {e}")
+            return False
+            
+    return True
 
 if __name__ == "__main__":
     print("Inicializando chaves e acessos do Supabase...")

@@ -40,8 +40,15 @@ def buscar_informacao(pergunta):
     )
     
     # carrega o banco salvo anteriormente
-    if not os.path.exists(PASTA_DB):
-        return "Erro: O banco de dados ainda não foi criado."
+    index_completo = os.path.exists(os.path.join(PASTA_DB, "index.faiss")) and os.path.exists(os.path.join(PASTA_DB, "index.pkl"))
+    
+    if not index_completo:
+        print("[VECTOR STORE] Indice local nao encontrado. Tentando baixar do Supabase Storage...")
+        from services.database import db_download_faiss_index
+        sucesso_download = db_download_faiss_index(PASTA_DB)
+        if not sucesso_download:
+            print("[VECTOR STORE] Nao foi possivel obter o indice FAISS da nuvem. Retornando busca vazia.")
+            return []
         
     vector_db = FAISS.load_local(PASTA_DB, embeddings, allow_dangerous_deserialization=True)
     
