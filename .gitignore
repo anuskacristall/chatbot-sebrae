@@ -1,6 +1,12 @@
 # Ignorar apenas arquivos PDFs pesados
 backend/data/pdfs/
 
+# Bancos de dados locais e arquivos SQLite (Proteção LGPD)
+*.db
+*.sqlite
+*.sqlite3
+backend/db/*.db
+
 # Configurações locais e chaves
 .env
 backend/.env
